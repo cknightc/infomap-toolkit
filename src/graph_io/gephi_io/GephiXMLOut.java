@@ -1,4 +1,25 @@
-package gephi_io;
+/*
+ * Part of infomap-toolkit--a java based concurrent toolkit for running the
+ * infomap algorithm (all credit for the algorithm goes to Martin Rosvall and
+ * Carl T. Bergstrom).
+ * 
+ * Copyright (C) 2014 Zach Tosi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package graph_io.gephi_io;
 
 import graph_elements.Module;
 import graph_elements.Network;
@@ -14,6 +35,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
+/**
+ * Converts a network object into a Gehpi xml (.gexf) file.
+ * 
+ * @author Zach Tosi
+ */
 public class GephiXMLOut {
 
     private static final String XML_HEADER = "<?xml version=\"1.0\"" +
@@ -158,8 +184,8 @@ public class GephiXMLOut {
             pw.println("\t\t<edges>");
             int eId = 0;
             for (Node n : net.getFlatNodeList()) {
-                for (Node m : n.getTransferProbs().keySet()) {
-                    if (n.getTransferProbs().get(m) == 0.0) {
+                for (Node m : n.getTransferProbsOut().keySet()) {
+                    if (n.getTransferProbsOut().get(m) == 0.0) {
                         continue;
                     }
                     StringBuilder edgeSb =
@@ -174,7 +200,7 @@ public class GephiXMLOut {
                     pw.println("\t\t\t\t<attvalues>");
                     edgeSb = new StringBuilder("\t\t\t\t\t<attvalue " +
                         "for=\"weight\" value=\"");
-                    edgeSb.append(n.getTransferProbs().get(m));
+                    edgeSb.append(n.getTransferProbsOut().get(m));
                     edgeSb.append("\"></attvalue>");
                     pw.println(edgeSb.toString());
                     pw.println("\t\t\t\t</attvalues>");

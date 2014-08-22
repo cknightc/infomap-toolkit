@@ -1,33 +1,67 @@
+/*
+ * Part of infomap-toolkit--a java based concurrent toolkit for running the
+ * infomap algorithm (all credit for the algorithm goes to Martin Rosvall and
+ * Carl T. Bergstrom).
+ * 
+ * Copyright (C) 2014 Zach Tosi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
 package graph_elements;
 
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
+/**
+ * An object representing the nodes or vertices of the graph on which infomap
+ * will be performed. In addition to values like relative random walk visit
+ * frequency and transfer probabilities to other nodes, each node also contains
+ * several other values like an x and y coordinate, color (for representation
+ * in Gephi), and its index relative to other nodes.
+ * 
+ * Note that a Node will be considered equal to another node iff it has the same
+ * xy coordinates and index as the other node. Whether or not they are the same
+ * object is irrelevant. This allows two networks with the same nodes to be more
+ * easily compared. 
+ * 
+ * @author Zach Tosi
+ *
+ */
 public class Node {
 
-    private LinkedHashMap<Node, Double> transferProbs =
+    private Map<Node, Double> transferProbsOut =
         new LinkedHashMap<Node, Double>();
-
+    private Map<Node, Double> transferProbsIn =
+        new LinkedHashMap<Node, Double>();
+    private Module parentModule;
     private double relativeFrequency;
-
     private final int index;
-
     private int color;
-
     private double x;
-
     private double y;
-
-    private boolean useIndexForEquals = false;
 
     public Node(final int index) {
         this.index = index;
     }
 
-    public Node(LinkedHashMap<Node, Double> transferProbs,
-        double relativeFrequency, final int index) {
-        this.setTransferProbs(transferProbs);
-        this.setRelativeFrequency(relativeFrequency);
+    public Node(Map<Node, Double> transferProbsOut,
+        Map<Node, Double> transferProbsIn, double relativeFrequency,
+        final int index) {
+        setTransferProbsOut(transferProbsOut);
+        setTransferProbsIn(transferProbsIn);
+        setRelativeFrequency(relativeFrequency);
         this.index = index;
     }
 
@@ -63,12 +97,20 @@ public class Node {
         this.relativeFrequency = relativeFrequency;
     }
 
-    public LinkedHashMap<Node, Double> getTransferProbs() {
-        return transferProbs;
+    public Map<Node, Double> getTransferProbsOut() {
+        return transferProbsOut;
     }
 
-    public void setTransferProbs(LinkedHashMap<Node, Double> transferProbs) {
-        this.transferProbs = transferProbs;
+    public void setTransferProbsOut(Map<Node, Double> transferProbsOut) {
+        this.transferProbsOut = transferProbsOut;
+    }
+
+    public Map<Node, Double> getTransferProbsIn() {
+        return transferProbsIn;
+    }
+
+    public void setTransferProbsIn(Map<Node, Double> transferProbsIn) {
+        this.transferProbsIn = transferProbsIn;
     }
 
     public int getIndex() {
@@ -76,7 +118,25 @@ public class Node {
     }
 
     public void addOutgoingEdge(Node target, double weight) {
-        transferProbs.put(target, weight);
+        transferProbsOut.put(target, weight);
+    }
+
+    public void addIncomingEdge(Node source, double weight) {
+        transferProbsIn.put(source, weight);
+    }
+
+    /**
+     * @return the parentModule
+     */
+    public Module getParentModule() {
+        return parentModule;
+    }
+
+    /**
+     * @param parentModule the parentModule to set
+     */
+    public void setParentModule(Module parentModule) {
+        this.parentModule = parentModule;
     }
 
     @Override
@@ -88,6 +148,10 @@ public class Node {
         return xVal ^ yVal + indVal;
     }
 
+    /**
+     * Equals based on if the xy coordinates and index are the same for the
+     * nodes being compared.
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
@@ -97,24 +161,6 @@ public class Node {
         if (this.getClass() != obj.getClass())
             return false;
         return this.hashCode() == obj.hashCode();
-    }
-
-    public static void main(String[] args) {
-        Node n1 = new Node(3);
-        n1.setX(-435.21);
-        n1.setY(12.01);
-        Node n2 = new Node(3);
-        n2.setX(-435.21);
-        n2.setY(12.01);
-        System.out.println(n1.hashCode());
-        System.out.println(n2.hashCode());
-        System.out.println(n1.equals(n2));
-        HashSet<Node> nSet = new HashSet<Node>();
-        nSet.add(n1);
-        System.out.println(nSet.size());
-        nSet.remove(n2);
-        System.out.println(nSet.size());
-
     }
 
 }

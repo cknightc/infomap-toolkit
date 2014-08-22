@@ -1,57 +1,59 @@
+/*
+ * Part of infomap-toolkit--a java based concurrent toolkit for running the
+ * infomap algorithm (all credit for the algorithm goes to Martin Rosvall and
+ * Carl T. Bergstrom).
+ * 
+ * Copyright (C) 2014 Zach Tosi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
 package graph_elements;
 
 import java.awt.Color;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import matrix.SimbrainMath;
-import search.CostFunction;
-import executives.RandomWalker;
+import math.SimbrainMath;
+import graph_operations.CostFunction;
+import graph_operations.RandomWalker;
 
 public class Network {
 
     private Set<Module> modules = Collections
         .synchronizedSet(new HashSet<Module>());
-
-    private Map<Integer, Node> nodeIDMap = new HashMap<Integer, Node>();
-
-    public Map<Integer, Node> getNodeIDMap() {
-        return nodeIDMap;
-    }
-
     private final List<Node> flatNodeList;
-
     private double teleportProb;
-
     private int numNodes;
-
-    private final double nodeEntropy;
-
+    private final int originalNumNodes;
+    private double nodeEntropy;
     private double hierarchicalEntropy;
-
     private double maxFreq;
-
     private double stdDev;
-
     private double maxDev;
-
     private double minDev;
-
     private double mean;
+    private boolean hasDeadNodes;
 
     /**
      * 
@@ -61,108 +63,174 @@ public class Network {
         this.flatNodeList = list;
         this.modules = modules;
         this.numNodes = list.size();
+        this.originalNumNodes = numNodes;
         this.nodeEntropy = calcFlatEntropy();
         this.hierarchicalEntropy = CostFunction.cost(modules, nodeEntropy);
         calcStatistics();
         initializeColoring();
-        for (Node n : list) {
-            nodeIDMap.put(n.getIndex(), n);
-        }
     }
 
     /**
-     * 
+     * A constructor that does not specify relative node visit frequency. Note
+     * that this constructor automatically runs the random walker to generate
+     * these frequencies.
      * @param adjacencyMat
      * @param coordinateFileName
      * @param teleportProb
      */
     public Network(double[][] adjacencyMat, String coordinateFileName,
-        double teleportProb, boolean weightedSums) {
+        double teleportProb, boolean removeDeadNodes) {
         this(adjacencyMat, RandomWalker.generate_freqs(adjacencyMat,
-            weightedSums), coordinateFileName, teleportProb);
+            teleportProb), coordinateFileName, teleportProb, removeDeadNodes);
     }
 
     /**
      * 
-     * @param adjacencyMat
+     * @param weightMat
      * @param relativeFreqs
      * @param coordinateFileName
      * @param teleportProb
      */
-    public Network(double[][] adjacencyMat, double[] relativeFreqs,
-        String coordinateFileName, double teleportProb) {
-        numNodes = adjacencyMat.length;
+    public Network(double[][] weightMat, double[] relativeFreqs,
+        String coordinateFileName, double teleportProb,
+        boolean removeDeadNodes) {
+        numNodes = weightMat.length;
+        originalNumNodes = numNodes;
         flatNodeList = new ArrayList<Node>(numNodes);
         this.teleportProb = teleportProb;
         // Construct Nodes
-        for (int i = 0; i < numNodes; i++) {
-            Node n = new Node(i);
-            n.setRelativeFrequency(relativeFreqs[i]);
-            flatNodeList.add(n);
-        }
+        constructNodes(relativeFreqs);
+        // Assign xy positions
         readInAndSetXYCoordinates(coordinateFileName);
         // Connect nodes
-        for (int i = 0; i < numNodes; i++) {
-            LinkedHashMap<Node, Double> transferProbs =
-                new LinkedHashMap<Node, Double>();
-            for (int j = 0; j < numNodes; j++) {
-                transferProbs.put(flatNodeList.get(j), adjacencyMat[i][j]);
-            }
-            flatNodeList.get(i).setTransferProbs(transferProbs);
+        connectNodes(flatNodeList, weightMat);
+        // Calculate statistics and/or remove dead nodes
+        if (removeDeadNodes) {
+            // remove dead nodes, also calculates entropy and statistics
+            removeDeadNodes();
+        } else {
+            // Flat Entropy
+            nodeEntropy = calcFlatEntropy();
+            // Set values like mean, stdDev, max/minDev, and maxFreq
+            calcStatistics();
         }
-
-        // Construct singleton modules using only visited nodes.
-        Iterator<Node> nodeIter = flatNodeList.iterator();
-        while (nodeIter.hasNext()) {
-            Node n = nodeIter.next();
-            if (n.getRelativeFrequency() != 0) {
-                Module m = new Module(n, teleportProb);
-                modules.add(m);
-            } else {
-                nodeIter.remove();
-                nodeIDMap.remove(n.getIndex());
-                numNodes--;
-            }
-        }
-        for (Module m : modules) {
-            m.setTotNumNodesInNetwork(numNodes);
-        }
-        // Flat Entropy
-        nodeEntropy = calcFlatEntropy();
-        System.out.println("Flat Node entropy: " + nodeEntropy);
-
-        // Set values like mean, stdDev, max/minDev, and maxFreq
-        calcStatistics();
-
+        // Construct singleton modules.
+        initializeModules(flatNodeList);
         // Set the color of each of the nodes based on their relative
         // frequency.
         initializeColoring();
     }
 
-    public double[][] getMatrix() {
-        double[][] mat = new double[flatNodeList.size()][flatNodeList.size()];
+    /**
+     * 
+     * @param relativeFrequencies
+     */
+    private void constructNodes(double[] relativeFrequencies) {
+        for (int i = 0, n = relativeFrequencies.length; i < n; i++) {
+            Node node = new Node(i);
+            node.setRelativeFrequency(relativeFrequencies[i]);
+            flatNodeList.add(node);
+        }
+    }
+
+    /**
+     * Connect nodes to each other based on 
+     * @param flatNodeList
+     * @param weightMatrix
+     */
+    private void connectNodes(List<Node> flatNodeList,
+        double[][] weightMatrix) {
+        int numNodes = flatNodeList.size();
+        checkNodeMatrixConsistency(numNodes, weightMatrix.length);
+        for (int i = 0; i < numNodes; i++) {
+            checkNodeMatrixConsistency(numNodes, weightMatrix[i].length);
+            Node n1 = flatNodeList.get(i);
+            for (int j = 0; j < numNodes; j++) {
+                double weight = weightMatrix[i][j];
+                if (weight != 0) {
+                    Node n2 = flatNodeList.get(j);
+                    n1.addOutgoingEdge(n2, weight);
+                    n2.addIncomingEdge(n1, weight);
+                }
+            }
+        }
+
+    }
+
+    /**
+     * Permanently removes dead nodes from the network. A dead node is defined
+     * as a node with an in and out degree of 0. After this operation the index
+     * variable of each node will no longer correspond to its position in the
+     * {@link #flatNodeList}, so the nodes index value should be used for
+     * any reconstruction. Updates the network's entropy and statistics after
+     * all dead nodes have been removed.
+     */
+    public void removeDeadNodes() {
+        Iterator<Node> nodeIter = flatNodeList.iterator();
+        while (nodeIter.hasNext()) {
+            Node n = nodeIter.next();
+            if (n.getTransferProbsIn().size() == 0
+                && n.getTransferProbsOut().size() == 0) {
+                nodeIter.remove(); // Dead Node
+                numNodes--;
+                if (n.getParentModule() != null) {
+                    n.getParentModule().removeNode(n);
+                }
+            }
+        }
+        hasDeadNodes = numNodes != originalNumNodes;
+        nodeEntropy = calcFlatEntropy();
+        calcStatistics();
+    }
+
+    /**
+     * 
+     * @param flatNodeList
+     */
+    private void initializeModules(List<Node> flatNodeList) {
         for (Node n : flatNodeList) {
-            for (Node m : n.getTransferProbs().keySet()) {
-                mat[n.getIndex()][m.getIndex()] = n.getTransferProbs().get(m);
+            Module m = new Module(n, teleportProb);
+            modules.add(m);
+            m.setTotNumNodesInNetwork(numNodes);
+            n.setParentModule(m);
+        }
+    }
+
+    /**
+     * 
+     * @param size1
+     * @param size2
+     */
+    private void checkNodeMatrixConsistency(int size1, int size2) {
+        if (size1 != size2) {
+            throw new IllegalStateException("Nodes in the flat node list are"
+                + " inconsistent with the size of the weight matrix or the"
+                + " weight matrix is not square");
+        }
+    }
+
+    /**
+     * 
+     * @return
+     */
+    public double[][] getMatrix() {
+        double[][] mat = new double[originalNumNodes][originalNumNodes];
+        for (Node n : flatNodeList) {
+            for (Node m : n.getTransferProbsOut().keySet()) {
+                mat[n.getIndex()][m.getIndex()] =
+                    n.getTransferProbsOut().get(m);
             }
         }
         return mat;
     }
 
-    public static boolean isDeadNode(double[][] transferMat, int rc) {
-        boolean isDead = true;
-        for (int i = 0; i < transferMat.length; i++) {
-            isDead &= transferMat[rc][i] == 0 && transferMat[i][rc] == 0;
-            if (!isDead) {
-                return isDead;
-            }
-        }
-        return isDead;
-    }
-
+    /**
+     * 
+     * @param n
+     */
     public void removeNode(Node n) {
         flatNodeList.remove(n);
-        nodeIDMap.remove(n.getIndex());
+        numNodes--;
         Iterator<Module> modIter = modules.iterator();
         while (modIter.hasNext()) {
             Module m = modIter.next();
@@ -171,6 +239,8 @@ public class Network {
                 return;
             }
         }
+        nodeEntropy = calcFlatEntropy();
+        calcStatistics();
     }
 
     /**
@@ -256,21 +326,6 @@ public class Network {
                 System.out.print(n.getIndex() + " ");
             }
             System.out.println();
-        }
-    }
-
-    public void printNetworkToFile(String filename) {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(filename))) {
-            pw.println("<Meta>");
-            pw.println("\t Size: " + numNodes);
-            pw.println("\t Flat Entropy: " + nodeEntropy);
-
-            for (Node n : flatNodeList) {
-                pw.print(n.getIndex());
-            }
-        } catch (IOException | NullPointerException ex) {
-            ex.printStackTrace();
-            System.exit(1);
         }
     }
 
@@ -381,6 +436,13 @@ public class Network {
 
     public void setTeleportProb(double teleportProb) {
         this.teleportProb = teleportProb;
+    }
+
+    /**
+     * @return the hasDeadNodes
+     */
+    public boolean isHasDeadNodes() {
+        return hasDeadNodes;
     }
 
 }

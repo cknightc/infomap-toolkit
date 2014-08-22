@@ -1,4 +1,29 @@
-package search;
+/*
+ * Part of infomap-toolkit--a java based concurrent toolkit for running the
+ * infomap algorithm (all credit for the algorithm goes to Martin Rosvall and
+ * Carl T. Bergstrom).
+ * 
+ * Copyright (C) 2014 Zach Tosi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package graph_operations.searches;
+
+import graph_elements.Module;
+import graph_elements.Network;
+import graph_operations.CostFunction;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -10,9 +35,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import executives.Task;
-import graph_elements.Module;
-import graph_elements.Network;
+import concurrency_tools.AbstractProducer;
+import concurrency_tools.Consumer;
+import concurrency_tools.Task;
 
 public class GreedySearch {
 
@@ -43,6 +68,12 @@ public class GreedySearch {
      */
     private CyclicBarrier mergeCycleLatch;
 
+    /** 
+     * A count down latch which can be set by classes calling this search
+     * allowing the search to complete before any other actions are taken.
+     */
+    private CountDownLatch externalLatch;
+
     /**
      * 
      * @param net
@@ -60,19 +91,27 @@ public class GreedySearch {
     public void search() {
         Consumer[] consumers = new Consumer[NUM_CONSUMERS];
         for (int i = 0; i < NUM_CONSUMERS; i++) {
-            consumers[i] = new Consumer();
+            consumers[i] = new Consumer(taskQueue);
         }
-        new Thread(new Producer(consumers)).start();
+        new Thread(new GSTaskProducer(consumers)).start();
         for (Consumer c : consumers) {
             new Thread(c).start();
         }
 
     }
 
+    public CountDownLatch getExternalLatch() {
+        return externalLatch;
+    }
+
+    public void setExternalLatch(CountDownLatch externalLatch) {
+        this.externalLatch = externalLatch;
+    }
+
     /**
+     * The task performed during the greedy search.
      * 
-     * @author zach
-     * 
+     * @author Zach Tosi
      */
     private class SearchTask implements Task {
 
@@ -119,6 +158,9 @@ public class GreedySearch {
 
         @Override
         public void perform() {
+            if (!Module.areConnected(m1, m2)) {
+                return;
+            }
             double val = CostFunction.cost(getProposedMapping(), nodeEntropy);
             synchronized (partitionEntropyLock) {
                 if (val < partitionEntropy) {
@@ -135,7 +177,11 @@ public class GreedySearch {
 
     }
 
-    public class PoisonTask implements Task {
+    /**
+     * A  task telling the consumer to wait at a cyclic barrier.
+     * @author Zach Tosi
+     */
+    private class WaitTask implements Task {
 
         @Override
         public void perform() {
@@ -154,22 +200,21 @@ public class GreedySearch {
 
     }
 
-    public CountDownLatch latch;
+    /**
+     * An producer specifically for greedy search tasks.
+     * 
+     * @author Zach Tosi
+     *
+     */
+    private class GSTaskProducer extends AbstractProducer {
 
-    private class Producer implements Runnable {
-
-        private final Consumer[] consumers;
-
-        public Producer(Consumer[] consumers) {
-            this.consumers = consumers;
+        public GSTaskProducer(concurrency_tools.Consumer[] consumers) {
+            super(consumers);
         }
 
-        public void shutdownConsumers() {
-            for (Consumer c : consumers) {
-                c.shutdown();
-            }
-        }
-
+        /**
+         * 
+         */
         @Override
         public void run() {
             double partEntropy = Double.POSITIVE_INFINITY;
@@ -192,7 +237,7 @@ public class GreedySearch {
                 }
                 for (int i = 0; i < NUM_CONSUMERS; i++) {
                     try {
-                        taskQueue.put(new PoisonTask());
+                        taskQueue.put(new WaitTask());
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                         System.exit(1);
@@ -208,51 +253,20 @@ public class GreedySearch {
                     partitioning.remove(minimalTask.getM1());
                     partitioning.remove(minimalTask.getM2());
                     partitioning.add(minimalTask.getMergedMod());
+                    minimalTask.getMergedMod().claimOwnershipOfChildren();
                 }
+            }
+            for (Module mod : partitioning) {
+                mod.claimOwnershipOfChildren();
             }
             shutdownConsumers();
-            // int counter = 0;
-            // for (Module m : partitioning) {
-            // System.out.println("Module [ " + counter++ + " ]");
-            // for (Node n : m.getNodes()) {
-            // System.out.print(n.getIndex() + " ");
-            // }
-            // System.out.println();
-            // }
-            System.out.println("Hierarchical Entropy: " + partitionEntropy);
+            //            System.out.println("Hierarchical Entropy: " + partitionEntropy);
             net.setModules(partitioning);
             net.setHierarchicalEntropy(partitionEntropy);
-            latch.countDown();
-        }
-    }
-
-    private class Consumer implements Runnable {
-
-        private volatile boolean continueRunning = true;
-
-        @Override
-        public void run() {
-            while (continueRunning) {
-                try {
-                    taskQueue.take().perform();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+            if (externalLatch != null) {
+                externalLatch.countDown();
             }
-
         }
-
-        public void shutdown() {
-            continueRunning = false;
-        }
-
     }
-
-    // public static void main(String[] args) {
-    // Network net = new Network(
-    // MatrixReader.matrixReader("./resources/TE04-0"));
-    // GreedySearch searcher = new GreedySearch(net);
-    // searcher.search();
-    // }
 
 }

@@ -1,11 +1,38 @@
-package search;
+/*
+ * Part of infomap-toolkit--a java based concurrent toolkit for running the
+ * infomap algorithm (all credit for the algorithm goes to Martin Rosvall and
+ * Carl T. Bergstrom).
+ * 
+ * Copyright (C) 2014 Zach Tosi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package graph_operations;
 
 import graph_elements.Module;
 
 import java.util.Collection;
 
-import matrix.SimbrainMath;
+import math.SimbrainMath;
 
+/**
+ * A class containing the infomap cost function.
+ * 
+ * @author Zach Tosi
+ *
+ */
 public final class CostFunction {
 
     /**
@@ -19,7 +46,7 @@ public final class CostFunction {
      * @return
      */
     public static double cost(Collection<Module> proposedPartitioning,
-            double nodeEntropy) {
+        double nodeEntropy) {
         /*
          * som: Sum over modules son: Sum over nodes sonim: Sum over nodes in
          * module
@@ -53,7 +80,7 @@ public final class CostFunction {
         double secondTerm = 0;
         for (Module m : proposedPartitioning) {
             secondTerm += m.getExitProbability()
-                    * SimbrainMath.log2(m.getExitProbability());
+                * SimbrainMath.log2(m.getExitProbability());
         }
         secondTerm *= 2;
 

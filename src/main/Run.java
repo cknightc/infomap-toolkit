@@ -1,13 +1,13 @@
-package search;
+package main;
 
-import gephi_io.GephiXMLOut;
 import graph_elements.Network;
+import graph_io.MatrixReader;
+import graph_io.gephi_io.GephiXMLOut;
+import graph_operations.searches.GreedySearch;
 
 import java.io.FileReader;
 import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
-
-import matrix.MatrixReader;
 
 public class Run {
 
@@ -51,7 +51,7 @@ public class Run {
                                     false);
                             CountDownLatch c = new CountDownLatch(1);
                             GreedySearch searcher = new GreedySearch(net);
-                            searcher.latch = c;
+                            searcher.setExternalLatch(c);
                             searcher.search();
                             try {
                                 c.await();

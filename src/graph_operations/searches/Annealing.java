@@ -1,8 +1,30 @@
-package search;
+/*
+ * Part of infomap-toolkit--a java based concurrent toolkit for running the
+ * infomap algorithm (all credit for the algorithm goes to Martin Rosvall and
+ * Carl T. Bergstrom).
+ * 
+ * Copyright (C) 2014 Zach Tosi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package graph_operations.searches;
 
 import graph_elements.Module;
 import graph_elements.Network;
 import graph_elements.Node;
+import graph_operations.CostFunction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,7 +69,8 @@ public class Annealing implements Runnable {
     @Override
     public void run() {
         temp = startTemperature;
-        HashMap<ModuleTuple, Double> successorProbMapping = new HashMap<ModuleTuple, Double>();
+        HashMap<ModuleTuple, Double> successorProbMapping =
+            new HashMap<ModuleTuple, Double>();
         ArrayList<Module> modules = new ArrayList<Module>();
         for (Module m : modulesClassVar) {
             modules.add(m.deepCopy());
@@ -71,12 +94,12 @@ public class Annealing implements Runnable {
                         // entropy, i.e. higher prob of moving from one to
                         // the other
                         ModuleTuple proposedMerge = new ModuleTuple(
-                                modules.get(i), modules.get(j));
+                            modules.get(i), modules.get(j));
                         // double prob = 1 - ((proposedMerge.module1.getSize() +
                         // proposedMerge.module2
                         // .getSize()) / net.getNumNodes());
                         double prob = 1.0 / (double) (modules.size()
-                                * (modules.size() - 1.0) / 2.0);
+                            * (modules.size() - 1.0) / 2.0);
                         successorProbMapping.put(proposedMerge, prob);
                         sum += prob;
                     }
@@ -86,7 +109,7 @@ public class Annealing implements Runnable {
                 // }
                 // Normalize
                 for (Entry<ModuleTuple, Double> ent : successorProbMapping
-                        .entrySet()) {
+                    .entrySet()) {
                     ent.setValue(ent.getValue() / sum);
                 }
             }
@@ -108,8 +131,8 @@ public class Annealing implements Runnable {
 
             // If positive new merger gives LONGER avg path description
             double entropyDiff = CostFunction
-                    .cost(cpySet, net.getNodeEntropy())
-                    - CostFunction.cost(modules, net.getNodeEntropy());
+                .cost(cpySet, net.getNodeEntropy())
+                - CostFunction.cost(modules, net.getNodeEntropy());
 
             if (entropyDiff < 0) {
                 // Remove the modules
@@ -159,7 +182,7 @@ public class Annealing implements Runnable {
         public Module getCpyMerger() {
             Module merged = module1.deepCopy();
             return merged.mergeInto(module2, net.getTeleportProb(),
-                    net.getNumNodes());
+                net.getNumNodes());
         }
 
     }
@@ -194,7 +217,7 @@ public class Annealing implements Runnable {
         Annealing minAnneal = null;
         for (int i = 0; i < processors; i++) {
             double cost = CostFunction.cost(annealers[i].modulesClassVar,
-                    net.getNodeEntropy());
+                net.getNodeEntropy());
             if (cost < min) {
                 min = cost;
                 minCL = i;
