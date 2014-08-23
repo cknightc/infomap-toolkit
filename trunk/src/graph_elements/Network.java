@@ -21,6 +21,9 @@
  */
 package graph_elements;
 
+import graph_operations.CostFunction;
+import graph_operations.RandomWalker;
+
 import java.awt.Color;
 import java.io.FileReader;
 import java.io.IOException;
@@ -35,8 +38,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import math.SimbrainMath;
-import graph_operations.CostFunction;
-import graph_operations.RandomWalker;
 
 public class Network {
 
@@ -119,6 +120,7 @@ public class Network {
         // Set the color of each of the nodes based on their relative
         // frequency.
         initializeColoring();
+        System.out.println("Flat Entropy: " + nodeEntropy);
     }
 
     /**
@@ -154,7 +156,6 @@ public class Network {
                 }
             }
         }
-
     }
 
     /**
@@ -173,9 +174,9 @@ public class Network {
                 && n.getTransferProbsOut().size() == 0) {
                 nodeIter.remove(); // Dead Node
                 numNodes--;
-                if (n.getParentModule() != null) {
-                    n.getParentModule().removeNode(n);
-                }
+                //                if (n.getParentModule() != null) {
+                //                    n.getParentModule().removeNode(n);
+                //                }
             }
         }
         hasDeadNodes = numNodes != originalNumNodes;
@@ -192,7 +193,7 @@ public class Network {
             Module m = new Module(n, teleportProb);
             modules.add(m);
             m.setTotNumNodesInNetwork(numNodes);
-            n.setParentModule(m);
+            //            n.setParentModule(m);
         }
     }
 

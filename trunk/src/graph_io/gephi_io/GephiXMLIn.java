@@ -177,44 +177,62 @@ public class GephiXMLIn {
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
+        Scanner horc = null;
         PrintWriter pw = null;
-        //        PrintWriter pw2 = null;
+        PrintWriter pw2 = null;
+        PrintWriter pw3 = null;
         System.out.println("Begin? y/n");
         //        int checkNum = 2;
+
         try {
             try {
                 String responseString = scanner.next();
                 if (!responseString.matches("n")) {
                     GephiXMLIn gephIn;
-                    String mutualInfoFN = "./resources/MutualInfoRelNS";
-                    //                    String percentDecreaseFN = "./resources/PercentEDecrease";
+                    String mutualInfoFN =
+                        "../Neuro-Infomap_Resources/MutualInfoRelNS";
+                    String percentDecreaseFN =
+                        "../Neuro-Infomap_Resources/PercentEDecrease";
+                    String sizesFN = "../Neuro-Infomap_Resources/NetworkSizes";
                     pw = new PrintWriter(new FileWriter(mutualInfoFN));
-                    //                    pw2 = new PrintWriter(new FileWriter(percentDecreaseFN));
+                    pw2 = new PrintWriter(new FileWriter(percentDecreaseFN));
+                    pw3 = new PrintWriter(new FileWriter(sizesFN));
+                    horc = new Scanner(new FileReader(
+                        "../Neuro-Infomap_Resources/Cor_OR_Hip.txt"));
                     for (int i = 1; i <= 60; i++) {
                         Network[] networks = new Network[10];
+                        String type = "";
+                        if (horc.next().equals("C")) {
+                            type = "Cortex";
+                        } else {
+                            type = "Hip";
+                        }
                         for (int j = 1; j <= 10; j++) {
                             String graphFilename =
-                                "./resources/GephiXMLFiles/Hip" + i + "_" + j
+                                "../Neuro-Infomap_Resources/GephiXMLFiles/"
+                                    + type + i + "_" + j
                                     + ".gexf";
                             gephIn = new GephiXMLIn(graphFilename, 0.15);
                             networks[j - 1] = gephIn.createNetFromGEXF();
-                            //                            pw2.print((networks[j - 1].getNodeEntropy()
-                            //                                - networks[j - 1].getHierarchicalEntropy())
-                            //                                / networks[j - 1].getNodeEntropy() + " \t");
+                            pw2.print((networks[j - 1].getNodeEntropy()
+                                - networks[j - 1].getHierarchicalEntropy())
+                                / networks[j - 1].getNodeEntropy() + " \t");
+                            pw3.print(networks[j - 1].getNumNodes() + "\t");
                         }
-                        //                        pw2.println();
+                        pw2.println();
+                        pw3.println();
                         for (int k = 0; k < 9; k++) {
                             double kMI = NetworkComparison.mutualInformation(
                                 networks[k + 1], networks[k + 1]);
                             double kMI1 = NetworkComparison.mutualInformation(
                                 networks[k + 1], networks[k]);
                             pw.print(kMI1 / kMI + "\t");
-                            //                            if (k == checkNum) {
-                            //                                System.out
-                            //                                    .println(NetworkComparison
-                            //                                        .mutualInformation(networks[k],
-                            //                                            networks[k + 1]));
-                            //                            }
+                            //                                                        if (k == checkNum) {
+                            //                                                            System.out
+                            //                                                                .println(NetworkComparison
+                            //                                                                    .mutualInformation(networks[k],
+                            //                                                                        networks[k + 1]));
+                            //                                                        }
                         }
                         if (i != 60) {
                             pw.println();
@@ -226,8 +244,10 @@ public class GephiXMLIn {
             }
         } finally {
             scanner.close();
+            horc.close();
             pw.close();
-            //            pw2.close();
+            pw2.close();
+            pw3.close();
             System.exit(0); // Done.
         }
 

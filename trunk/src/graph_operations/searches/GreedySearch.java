@@ -25,9 +25,11 @@ import graph_elements.Module;
 import graph_elements.Network;
 import graph_operations.CostFunction;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.BrokenBarrierException;
@@ -74,6 +76,8 @@ public class GreedySearch {
      */
     private CountDownLatch externalLatch;
 
+    private List<Thread> consumerThreads = new ArrayList<Thread>();
+
     /**
      * 
      * @param net
@@ -95,9 +99,11 @@ public class GreedySearch {
         }
         new Thread(new GSTaskProducer(consumers)).start();
         for (Consumer c : consumers) {
-            new Thread(c).start();
+            consumerThreads.add(new Thread(c));
         }
-
+        for (Thread t : consumerThreads) {
+            t.start();
+        }
     }
 
     public CountDownLatch getExternalLatch() {
@@ -256,17 +262,23 @@ public class GreedySearch {
                     minimalTask.getMergedMod().claimOwnershipOfChildren();
                 }
             }
-            for (Module mod : partitioning) {
-                mod.claimOwnershipOfChildren();
-            }
+
             shutdownConsumers();
-            //            System.out.println("Hierarchical Entropy: " + partitionEntropy);
+            System.out.println("Hierarchical Entropy: " + partitionEntropy);
             net.setModules(partitioning);
             net.setHierarchicalEntropy(partitionEntropy);
             if (externalLatch != null) {
                 externalLatch.countDown();
             }
         }
+
+        public void shutdownConsumers() {
+            super.shutdownConsumers();
+            for (Thread t : consumerThreads) {
+                t.interrupt();
+            }
+        }
+
     }
 
 }
