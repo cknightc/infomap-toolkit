@@ -529,6 +529,18 @@ public class SimbrainMath {
         return min;
     }
 
+    public static double[][] arr2DDeepCopy(double[][] arr) {
+        int n = arr.length;
+        int m = arr[0].length;
+        double[][] copy = new double[n][m];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < m; j++) {
+                copy[i][j] = arr[i][j];
+            }
+        }
+        return copy;
+    }
+
     /**
      * Add noise to a vector.
      * 

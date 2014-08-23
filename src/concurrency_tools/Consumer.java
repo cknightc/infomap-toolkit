@@ -39,10 +39,9 @@ public class Consumer implements Runnable {
             try {
                 taskQueue.take().perform();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                return;
             }
         }
-
     }
 
     public void shutdown() {

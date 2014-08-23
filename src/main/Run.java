@@ -20,27 +20,31 @@ public class Run {
         try {
             try {
                 String responseString = scanner.next();
+                horc = new Scanner(new FileReader(
+                    "../Neuro-Infomap_Resources/Cor_OR_Hip.txt"));
                 if (!responseString.matches("n")) {
                     for (int i = 1; i <= 60; i++) {
-                        horc = new Scanner(new FileReader(
-                            "./resources/Cor_OR_Hip.txt"));
                         String type = "";
-                        if (horc.next().equals("C")) {
+                        String p = horc.nextLine();
+                        if (p.equals("C")) {
                             type = "Cortex";
                         } else {
                             type = "Hip";
                         }
                         String xyFilename =
-                            "./resources/XYCoordinates/Hip_XY/Hip" + i + "XY";
+                            "../Neuro-Infomap_Resources/XYCoordinates/Hip_XY/Hip"
+                                + i + "XY";
                         for (int j = 1; j <= 10; j++) {
                             String teFilename =
-                                "./resources/TEMatrixFiles/TE_Hip_Normal/"
+                                "../Neuro-Infomap_Resources/TEMatrixFiles/TE_Hip_Normal/"
                                     + "TEHip" + i + "_" + j;
                             String graphFilename =
-                                "./resources/GephiXMLFiles/" + type + i + "_"
+                                "../Neuro-Infomap_Resources/GephiXMLFiles/"
+                                    + type + i + "_"
                                     + j;
                             String graphFileNameHeat =
-                                "./resources/GephiXMLFiles/" + type + i + "_"
+                                "../Neuro-Infomap_Resources/GephiXMLFiles/"
+                                    + type + i + "_"
                                     + j
                                     + "NodeHeat";
                             System.out.println(teFilename);
@@ -48,7 +52,7 @@ public class Run {
                                 new Network(MatrixReader
                                     .matrixReader(teFilename),
                                     xyFilename, DEFAULT_TELEPORT_PROBABILITY,
-                                    false);
+                                    true);
                             CountDownLatch c = new CountDownLatch(1);
                             GreedySearch searcher = new GreedySearch(net);
                             searcher.setExternalLatch(c);

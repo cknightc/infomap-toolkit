@@ -36,36 +36,20 @@ import math.SimbrainMath;
 
 public class RandomWalker implements Runnable {
 
-    public static int STOP_CRITERIA = (int) 1E05;
+    private static int STOP_CRITERIA = (int) 1E04;
 
-    private final double teleportProb;
-    /** Do not modify after creation. */
-    private final double[][] weightMat;
+    private final double teleport_prob;
+
+    private final double[][] mat; // Unsafe! Don't modify...
+
     private final long[] visitCount;
+
     private final int numNodes;
 
-    /**
-     * 
-     * @param weightMat
-     */
     public RandomWalker(final double[][] weightMat, double teleportProb) {
-        this.teleportProb = teleportProb;
-        if (MatrixReader.squareCheck(weightMat)
-            .equals(ReturnStatus.FAILURE)) {
-            throw new IllegalArgumentException("Adjacency Matrix isn't square");
-        }
+        this.teleport_prob = teleportProb;
+        this.mat = weightMat;
         numNodes = weightMat.length;
-        for (int i = 0, n = weightMat.length; i < n; i++) {
-            weightMat[i][i] = 0;
-        }
-        if (MatrixReader.sanityCheck(weightMat)
-            .equals(ReturnStatus.FAILURE)) {
-            for (int i = 0, n = weightMat.length; i < n; i++) {
-                weightMat[i] = SimbrainMath.normalizeVec(
-                    weightMat[i]);
-            }
-        }
-        this.weightMat = weightMat;
         visitCount = new long[numNodes];
     }
 
@@ -76,30 +60,32 @@ public class RandomWalker implements Runnable {
         Random rand = ThreadLocalRandom.current();
         int currentNode = rand.nextInt(numNodes); // Initial node
         while (visits < stop) {
-            if (rand.nextDouble() < teleportProb) {
+            if (rand.nextDouble() < teleport_prob) {
                 currentNode = rand.nextInt(numNodes);
             } else {
-                int rSelect = randSelect(weightMat[currentNode]);
-                currentNode = rSelect;
-                visitCount[currentNode]++;
-                visits++;
+                int rSelect = randSelect(mat[currentNode]);
+                if (rSelect < 0) {
+                    currentNode = rand.nextInt(numNodes);
+                } else {
+                    currentNode = rSelect;
+                }
             }
+            visitCount[currentNode]++;
+            visits++;
         }
     }
 
-    /**
-     * 
-     * @param outProbs
-     * @return
-     */
     public int randSelect(double[] outProbs) {
         double p = Math.random();
         double tot = 0;
         for (int i = 0, n = outProbs.length; i < n; i++) {
             tot += outProbs[i];
-            if (tot >= p) {
+            if (tot > p) {
                 return i;
             }
+        }
+        if (tot == 0) {
+            return -1;
         }
         throw new IllegalArgumentException("The sum of the probabilities is" +
             " not either zero or one.");
@@ -109,10 +95,6 @@ public class RandomWalker implements Runnable {
         return visitCount;
     }
 
-    /**
-     * 
-     * @return
-     */
     public BigDecimal[] getVisitFrequencies() {
         BigDecimal[] frequencies = new BigDecimal[visitCount.length];
         for (int i = 0, n = visitCount.length; i < n; i++) {
@@ -124,21 +106,27 @@ public class RandomWalker implements Runnable {
         return frequencies;
     }
 
-    /**
-     * 
-     * @param adjacencyMat
-     * @return
-     */
-    public static double[] generate_freqs(double[][] adjacencyMat,
+    public static double[] generate_freqs(double[][] weightMat,
         double teleportProb) {
-        int numThreads = Runtime.getRuntime().availableProcessors() - 1;
+        if (MatrixReader.squareCheck(weightMat)
+            .equals(ReturnStatus.FAILURE)) {
+            throw new IllegalArgumentException("Adjacency Matrix isn't square");
+        }
+        for (int i = 0, n = weightMat.length; i < n; i++) {
+            weightMat[i][i] = 0;
+        }
+        if (MatrixReader.sanityCheck(weightMat)
+            .equals(ReturnStatus.FAILURE)) {
+            for (int i = 0, n = weightMat.length; i < n; i++) {
+                weightMat[i] = SimbrainMath.normalizeVec(weightMat[i]);
+            }
+        }
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        ExecutorService taskExecutor = Executors.newFixedThreadPool(numThreads);
         RandomWalker[] rwArr = new RandomWalker[numThreads];
         for (int i = 0; i < numThreads; i++) {
-            rwArr[i] = new RandomWalker(adjacencyMat, teleportProb);
-        }
-        ExecutorService taskExecutor =
-            Executors.newFixedThreadPool(numThreads);
-        for (int i = 0; i < numThreads; i++) {
+            rwArr[i] = new RandomWalker(SimbrainMath
+                .arr2DDeepCopy(weightMat), teleportProb);
             taskExecutor.execute(rwArr[i]);
         }
         taskExecutor.shutdown();
@@ -148,29 +136,32 @@ public class RandomWalker implements Runnable {
             ie.printStackTrace();
             System.exit(1);
         }
-        BigDecimal[] visitCounts = new BigDecimal[adjacencyMat.length];
-        for (int j = 0; j < adjacencyMat.length; j++) {
+        BigDecimal[] visitCounts = new BigDecimal[weightMat.length];
+        for (int j = 0; j < weightMat.length; j++) {
             visitCounts[j] = BigDecimal.ZERO;
         }
         for (int i = 0; i < numThreads; i++) {
             BigDecimal[] nodeFreq = rwArr[i].getVisitFrequencies();
-            for (int j = 0; j < adjacencyMat.length; j++) {
+            for (int j = 0; j < weightMat.length; j++) {
                 visitCounts[j] =
                     visitCounts[j].add(nodeFreq[j].divide(new BigDecimal(
                         numThreads), 20, RoundingMode.HALF_UP));
             }
         }
         double sum = 0;
-        double[] vc = new double[adjacencyMat.length];
-        for (int j = 0; j < adjacencyMat.length; j++) {
+        double[] vc = new double[weightMat.length];
+        for (int j = 0; j < weightMat.length; j++) {
             vc[j] = visitCounts[j].doubleValue();
             sum += vc[j];
         }
-        double[] freqs = new double[adjacencyMat.length];
-        for (int i = 0, n = adjacencyMat.length; i < n; i++) {
+        // double s = 0;
+        double[] freqs = new double[weightMat.length];
+        for (int i = 0, n = weightMat.length; i < n; i++) {
             freqs[i] = vc[i] / sum;
+            // s += freqs[i];
         }
-
+        // System.out.println(s);
+        // System.out.println(Arrays.toString(freqs));
         return freqs;
     }
 
